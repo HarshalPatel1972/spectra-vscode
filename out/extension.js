@@ -7,10 +7,14 @@ const child_process_1 = require("child_process");
 const util_1 = require("util");
 const execAsync = (0, util_1.promisify)(child_process_1.exec);
 let diagnosticCollection;
+let statusBarItem;
+let latestFindings = [];
 function activate(context) {
     console.log('Spectra is now active!');
     diagnosticCollection = vscode.languages.createDiagnosticCollection('spectra');
-    context.subscriptions.push(diagnosticCollection);
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    statusBarItem.command = 'spectra.scanWorkspace';
+    context.subscriptions.push(diagnosticCollection, statusBarItem);
     const scanWorkspaceCommand = vscode.commands.registerCommand('spectra.scanWorkspace', async () => {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
@@ -45,7 +49,29 @@ function activate(context) {
             await runSpectraScan(document.uri.fsPath);
         }
     });
-    context.subscriptions.push(scanWorkspaceCommand, scanActiveFileCommand, onSave);
+    // Hover Provider
+    const hoverProvider = vscode.languages.registerHoverProvider(['go', 'python', 'java', 'javascript', 'typescript', 'rust', 'c', 'cpp'], {
+        provideHover(document, position, token) {
+            const uri = document.uri.toString();
+            const line = position.line;
+            const finding = latestFindings.find(f => vscode.Uri.file(f.file_path).toString() === uri &&
+                (f.line_number - 1 === line || f.line_number === line));
+            if (finding) {
+                const md = new vscode.MarkdownString();
+                md.appendMarkdown(`**Spectra Crypto Insight**\n\n`);
+                md.appendMarkdown(`Algorithm: **\${finding.algorithm}**\n\n`);
+                md.appendMarkdown(`QRS Score: **\${finding.qrs}** (\${finding.risk_band})\n\n`);
+                md.appendMarkdown(`*Migration Effort*: \${finding.migration_effort}\n\n`);
+                md.appendMarkdown(`*\${finding.effort_rationale}*\n`);
+                return new vscode.Hover(md);
+            }
+            return null;
+        }
+    });
+    context.subscriptions.push(scanWorkspaceCommand, scanActiveFileCommand, onSave, hoverProvider);
+    // Initial UI state
+    statusBarItem.text = `$(shield) Spectra: Ready`;
+    statusBarItem.show();
 }
 async function runSpectraScan(targetPath) {
     const config = vscode.workspace.getConfiguration('spectra');
@@ -69,6 +95,18 @@ function processSpectraOutput(jsonStr) {
     try {
         diagnosticCollection.clear();
         const result = JSON.parse(jsonStr);
+        latestFindings = result.findings || [];
+        if (result.aggregate_qrs !== undefined) {
+            statusBarItem.text = `$(shield) QRS: ${result.aggregate_qrs}`;
+            statusBarItem.tooltip = "Spectra Workspace Quantum Risk Score";
+            if (result.aggregate_qrs >= 80)
+                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+            else if (result.aggregate_qrs >= 40)
+                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+            else
+                statusBarItem.backgroundColor = undefined;
+            statusBarItem.show();
+        }
         if (!result.findings || result.findings.length === 0)
             return;
         const diagnosticsMap = new Map();
