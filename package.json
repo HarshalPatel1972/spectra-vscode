@@ -1,0 +1,51 @@
+{
+  "name": "spectra-security",
+  "displayName": "Spectra - Quantum Cryptography Scanner",
+  "description": "Discover cryptographic debt and quantum-vulnerable algorithms in your codebase.",
+  "version": "1.0.0",
+  "publisher": "HarshalPatel1972",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Linters",
+    "Security"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "spectra.scanWorkspace",
+        "title": "Spectra: Scan Workspace for Cryptography"
+      },
+      {
+        "command": "spectra.scanActiveFile",
+        "title": "Spectra: Scan Active File"
+      }
+    ],
+    "configuration": {
+      "title": "Spectra",
+      "properties": {
+        "spectra.executablePath": {
+          "type": "string",
+          "default": "spectra",
+          "description": "Path to the Spectra CLI executable."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "typescript": "^5.1.3"
+  }
+}
